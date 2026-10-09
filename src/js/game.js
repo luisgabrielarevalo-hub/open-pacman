@@ -28,6 +28,7 @@ function createGame() {
     score: 0,
     lives: 3,
     dotsRemaining: dots,
+    tick: 0,
     grid,
     pacman: {
       x: PACMAN_START.x,
@@ -42,6 +43,9 @@ function createGame() {
       dir: 'up',
       speed: GHOST_SPEED,
       kind: g.kind,
+      color: g.color,
+      exitAt: g.exitDelay || 0,
+      waiting: true,
     } ) ),
   };
 }
