@@ -123,6 +123,34 @@ function isPenCell( grid, x, y ) {
   return x >= 11 && x <= 16 && y >= 13 && y <= 15;
 }
 
+// Objetivo de caza por kind (celda entera, distancia Manhattan):
+//   chaser   → posición de Pacman.
+//   ambusher → Pacman + 4 en su dirección.
+//   flanker  → corte lateral: Pacman + 4 en perpendicular, hacia el lado del fantasma.
+//   random   → sin objetivo (aleatorio).
+function ghostTarget( game, g ) {
+  const p = game.pacman;
+  const px = Math.round( p.x );
+  const py = Math.round( p.y );
+  const d = DIRS[ p.dir ] || { x: 0, y: 0 };
+
+  if ( g.kind === 'ambusher' ) {
+    return { x: px + d.x * 4, y: py + d.y * 4 };
+  }
+  if ( g.kind === 'flanker' ) {
+    const gx = Math.round( g.x );
+    const gy = Math.round( g.y );
+    // Pacman en horizontal → corte en vertical; en vertical → corte en horizontal.
+    if ( d.x !== 0 ) {
+      const s = gy >= py ? 1 : -1;
+      return { x: px, y: py + s * 4 };
+    }
+    const s = gx >= px ? 1 : -1;
+    return { x: px + s * 4, y: py };
+  }
+  return { x: px, y: py }; // chaser
+}
+
 function decideGhost( game, g ) {
   const grid = game.grid;
   const p = game.pacman;
@@ -143,16 +171,15 @@ function decideGhost( game, g ) {
   // Sin salida (callejon): permitir el giro de 180.
   const choices = options.length ? options : [ '' + OPPOSITE[ g.dir ] ];
 
-  if ( g.kind === 'hunter' ) {
-    const px = Math.round( p.x );
-    const py = Math.round( p.y );
+  if ( g.kind === 'chaser' || g.kind === 'ambusher' || g.kind === 'flanker' ) {
+    const t = ghostTarget( game, g );
     let best = choices[ 0 ];
     let bestDist = Infinity;
     for ( const dir of choices ) {
       const d = DIRS[ dir ];
       const nx = g.x + d.x;
       const ny = g.y + d.y;
-      const dist = Math.abs( nx - px ) + Math.abs( ny - py );
+      const dist = Math.abs( nx - t.x ) + Math.abs( ny - t.y );
       if ( dist < bestDist ) {
         bestDist = dist;
         best = dir;
@@ -263,3 +290,4 @@ function update( game ) {
 window.createGame = createGame;
 window.update = update;
 window.DIRS = DIRS;
+window.ghostTarget = ghostTarget;
