@@ -256,10 +256,16 @@ function resetPositions( game ) {
   p.y = PACMAN_START.y;
   p.dir = 'left';
   p.nextDir = null;
+  // Reinicia la secuencia de salida: mismo estado que al empezar.
+  game.tick = 0;
   game.ghosts.forEach( ( g, i ) => {
     g.x = GHOST_STARTS[ i ].x;
     g.y = GHOST_STARTS[ i ].y;
     g.dir = 'up';
+    g.kind = GHOST_STARTS[ i ].kind;
+    g.color = GHOST_STARTS[ i ].color;
+    g.exitAt = GHOST_STARTS[ i ].exitDelay || 0;
+    g.waiting = true;
   } );
 }
 
