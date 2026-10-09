@@ -114,13 +114,32 @@ function movePacman( game ) {
   wrapTunnel( p, width );
 }
 
+// Celda de la casa/puerta: interior x 11-16, y 13-15 o tile puerta (3).
+// Un fantasma fuera (waiting=false) nunca debe volver a entrar.
+function isPenCell( grid, x, y ) {
+  if ( y < 0 || y >= grid.length ) return false;
+  if ( x < 0 || x >= grid[ 0 ].length ) return false;
+  if ( grid[ y ][ x ] === 3 ) return true;
+  return x >= 11 && x <= 16 && y >= 13 && y <= 15;
+}
+
 function decideGhost( game, g ) {
   const grid = game.grid;
   const p = game.pacman;
 
-  const options = Object.keys( DIRS ).filter(
-    ( dir ) => dir !== OPPOSITE[ g.dir ] && canMove( grid, g.x, g.y, dir, 'ghost' )
-  );
+  const cx = Math.round( g.x );
+  const cy = Math.round( g.y );
+  const outside = !g.waiting && !isPenCell( grid, cx, cy );
+  const options = Object.keys( DIRS ).filter( ( dir ) => {
+    if ( dir === OPPOSITE[ g.dir ] ) return false;
+    if ( !canMove( grid, g.x, g.y, dir, 'ghost' ) ) return false;
+    // Bloquear re-entrada: fuera no puede elegir celdas de la casa/puerta.
+    if ( outside ) {
+      const d = DIRS[ dir ];
+      if ( isPenCell( grid, cx + d.x, cy + d.y ) ) return false;
+    }
+    return true;
+  } );
   // Sin salida (callejon): permitir el giro de 180.
   const choices = options.length ? options : [ '' + OPPOSITE[ g.dir ] ];
 
@@ -145,15 +164,57 @@ function decideGhost( game, g ) {
   }
 }
 
+function moveGhostWaiting( game, g ) {
+  // Rebote vertical dentro de la casa (filas 13-15) hasta el turno de salida.
+  // Al llegar su turno (tick >= exitAt) sube por la puerta (tile 3).
+  if ( game.tick >= g.exitAt ) {
+    const doorX = g.x <= 13.5 ? 13 : 14;
+    if ( Math.abs( g.x - doorX ) > 0.05 ) {
+      g.dir = doorX > g.x ? 'right' : 'left';
+      g.x += Math.sign( doorX - g.x ) * g.speed;
+      return;
+    }
+    g.x = doorX;
+    g.dir = 'up';
+    g.y -= g.speed;
+    if ( g.y <= 11 ) {
+      g.y = 11;
+      g.waiting = false;
+      g.dir = 'left';
+    }
+    return;
+  }
+  if ( g.dir !== 'up' && g.dir !== 'down' ) g.dir = 'up';
+  g.y += ( g.dir === 'up' ? -1 : 1 ) * g.speed;
+  if ( g.y <= 13 ) {
+    g.y = 13;
+    g.dir = 'down';
+  } else if ( g.y >= 15 ) {
+    g.y = 15;
+    g.dir = 'up';
+  }
+}
+
 function moveGhost( game, g ) {
   const grid = game.grid;
   const width = grid[ 0 ].length;
+
+  // Dentro de la casa: siempre usar la lógica de salida (rebote o subida).
+  // Cubre waiting=true y el caso transitorio de un fantasma fuera que
+  // hubiera vuelto a entrar (ya no debería pasar, pero se auto-expulsa).
+  if ( g.waiting || isPenCell( grid, Math.round( g.x ), Math.round( g.y ) ) ) {
+    moveGhostWaiting( game, g );
+    return;
+  }
 
   if ( aligned( g.x ) && aligned( g.y ) ) {
     g.x = Math.round( g.x );
     g.y = Math.round( g.y );
     decideGhost( game, g );
     if ( !canMove( grid, g.x, g.y, g.dir, 'ghost' ) ) return;
+    // Doble seguro: fuera nunca avanza hacia la casa/puerta.
+    const d0 = DIRS[ g.dir ];
+    if ( isPenCell( grid, g.x + d0.x, g.y + d0.y ) ) return;
   }
 
   const d = DIRS[ g.dir ];
@@ -180,6 +241,7 @@ function collides( a, b ) {
 }
 
 function update( game ) {
+  game.tick++;
   movePacman( game );
   game.ghosts.forEach( ( g ) => moveGhost( game, g ) );
 
