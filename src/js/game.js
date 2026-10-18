@@ -312,14 +312,28 @@ function update( game ) {
     }
   }
 
-  for ( const g of game.ghosts ) {
+  for ( let i = 0; i < game.ghosts.length; i++ ) {
+    const g = game.ghosts[ i ];
     if ( collides( game.pacman, g ) ) {
-      game.lives--;
-      if ( game.lives <= 0 ) {
-        game.state = 'lost';
-        return;
+      if ( g.frightened ) {
+        // Comer fantasma: racha arcade 200/400/800/1600 y vuelta a la casa.
+        game.score += 200 * Math.pow( 2, game.chain );
+        game.chain++;
+        g.frightened = false;
+        g.speed = GHOST_SPEED;
+        g.x = GHOST_STARTS[ i ].x;
+        g.y = GHOST_STARTS[ i ].y;
+        g.dir = 'up';
+        g.waiting = true;
+        g.exitAt = game.tick + 60; // ~1 s de espera antes de salir
+      } else {
+        game.lives--;
+        if ( game.lives <= 0 ) {
+          game.state = 'lost';
+          return;
+        }
+        resetPositions( game );
       }
-      resetPositions( game );
       break;
     }
   }
