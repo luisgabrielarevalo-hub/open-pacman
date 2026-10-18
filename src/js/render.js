@@ -66,14 +66,19 @@ function drawDoor( ctx, grid ) {
   ctx.stroke();
 }
 
-function drawDots( ctx, grid ) {
+function drawDots( ctx, grid, frame ) {
   ctx.fillStyle = DOT_COLOR;
   for ( let y = 0; y < grid.length; y++ ) {
     for ( let x = 0; x < grid[ 0 ].length; x++ ) {
-      if ( grid[ y ][ x ] !== 2 ) continue;
+      const v = grid[ y ][ x ];
+      if ( v !== 2 && v !== 4 ) continue;
       const { cx, cy } = cellCenter( x, y );
+      const r = v === 2 ? 2.5 : 7;
+      // Pellet parpadea on/off con el frame; dot fijo.
+      if ( v === 4 && Math.floor( frame / 15 ) % 2 === 0 ) continue;
+      ctx.fillStyle = DOT_COLOR;
       ctx.beginPath();
-      ctx.arc( cx, cy, 2.5, 0, Math.PI * 2 );
+      ctx.arc( cx, cy, r, 0, Math.PI * 2 );
       ctx.fill();
     }
   }
@@ -163,9 +168,17 @@ function draw( ctx, game, frame ) {
 
   drawWalls( ctx, grid );
   drawDoor( ctx, grid );
-  drawDots( ctx, grid );
+  drawDots( ctx, grid, frame );
   drawPacman( ctx, game.pacman, frame );
-  game.ghosts.forEach( ( g, i ) => drawGhost( ctx, g, g.color || GHOST_COLOR_BY_KIND[ g.kind ] || GHOST_COLORS[ i ] || '#ff0000' ) );
+  game.ghosts.forEach( ( g, i ) => {
+    let color = g.color || GHOST_COLOR_BY_KIND[ g.kind ] || GHOST_COLORS[ i ] || '#ff0000';
+    // Asustado: azul; parpadea a blanco en los ultimos 120 ticks de modo.
+    if ( g.frightened ) {
+      color = '#2121ff';
+      if ( game.pelletTimer <= 120 && Math.floor( frame / 10 ) % 2 === 0 ) color = '#ffffff';
+    }
+    drawGhost( ctx, g, color );
+  } );
   drawHUD( ctx, game, W );
 }
 

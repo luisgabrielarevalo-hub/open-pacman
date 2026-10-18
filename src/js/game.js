@@ -12,6 +12,8 @@ const OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' };
 
 const PACMAN_SPEED = 0.125; // 1/8 celda/frame -> alinea cada 8 frames
 const GHOST_SPEED = 0.1;    // 1/10 celda/frame
+const FRIGHTENED_SPEED = 0.05; // 1/20 celda/frame durante el modo asustado
+const PELLET_TICKS = 360;   // 360 ticks ~ 6 s de modo asustado
 
 // Crea una partida nueva. Copia MAZE (pristino) a game.grid para poder comer
 // dots sin destruir el original, y reiniciar.
@@ -21,7 +23,7 @@ function createGame() {
   grid[ PACMAN_START.y ][ PACMAN_START.x ] = 0;
 
   let dots = 0;
-  for ( const row of grid ) for ( const v of row ) if ( v === 2 ) dots++;
+  for ( const row of grid ) for ( const v of row ) if ( v === 2 || v === 4 ) dots++;
 
   return {
     state: 'start',
@@ -29,6 +31,8 @@ function createGame() {
     lives: 3,
     dotsRemaining: dots,
     tick: 0,
+    pelletTimer: 0, // ticks restantes de modo asustado; 0 = inactivo
+    chain: 0,       // racha de fantasmas comidos en el modo asustado (200..1600)
     grid,
     pacman: {
       x: PACMAN_START.x,
@@ -46,6 +50,7 @@ function createGame() {
       color: g.color,
       exitAt: g.exitDelay || 0,
       waiting: true,
+      frightened: false,
     } ) ),
   };
 }
@@ -103,6 +108,15 @@ function movePacman( game ) {
       grid[ p.y ][ p.x ] = 0;
       game.score += 10;
       game.dotsRemaining--;
+    }
+    // Comer power pellet: +50 y modo asustado para los 4 fantasmas.
+    if ( grid[ p.y ][ p.x ] === 4 ) {
+      grid[ p.y ][ p.x ] = 0;
+      game.score += 50;
+      game.dotsRemaining--;
+      game.pelletTimer = PELLET_TICKS;
+      game.chain = 0;
+      for ( const g of game.ghosts ) g.frightened = true;
     }
     // Si no puede seguir, se detiene en la celda.
     if ( !canMove( grid, p.x, p.y, p.dir, 'pacman' ) ) return;
@@ -170,6 +184,12 @@ function decideGhost( game, g ) {
   } );
   // Sin salida (callejon): permitir el giro de 180.
   const choices = options.length ? options : [ '' + OPPOSITE[ g.dir ] ];
+
+  // Asustado: los 4 kinds eligen al azar (ignoran su personalidad).
+  if ( g.frightened ) {
+    g.dir = choices[ Math.floor( Math.random() * choices.length ) ];
+    return;
+  }
 
   if ( g.kind === 'chaser' || g.kind === 'ambusher' || g.kind === 'flanker' ) {
     const t = ghostTarget( game, g );
@@ -256,6 +276,9 @@ function resetPositions( game ) {
   p.y = PACMAN_START.y;
   p.dir = 'left';
   p.nextDir = null;
+  // Perder vida termina el modo asustado de golpe.
+  game.pelletTimer = 0;
+  game.chain = 0;
   // Reinicia la secuencia de salida: mismo estado que al empezar.
   game.tick = 0;
   game.ghosts.forEach( ( g, i ) => {
@@ -266,6 +289,8 @@ function resetPositions( game ) {
     g.color = GHOST_STARTS[ i ].color;
     g.exitAt = GHOST_STARTS[ i ].exitDelay || 0;
     g.waiting = true;
+    g.frightened = false;
+    g.speed = GHOST_SPEED;
   } );
 }
 
@@ -276,16 +301,44 @@ function collides( a, b ) {
 function update( game ) {
   game.tick++;
   movePacman( game );
+  // Velocidad efimera: depende del modo asustado de cada fantasma.
+  for ( const g of game.ghosts ) g.speed = g.frightened ? FRIGHTENED_SPEED : GHOST_SPEED;
   game.ghosts.forEach( ( g ) => moveGhost( game, g ) );
 
-  for ( const g of game.ghosts ) {
-    if ( collides( game.pacman, g ) ) {
-      game.lives--;
-      if ( game.lives <= 0 ) {
-        game.state = 'lost';
-        return;
+  // Tempo del modo asustado: al agotarse, todos vuelven a la normalidad.
+  if ( game.pelletTimer > 0 ) {
+    game.pelletTimer--;
+    if ( game.pelletTimer === 0 ) {
+      game.chain = 0;
+      for ( const g of game.ghosts ) {
+        g.frightened = false;
+        g.speed = GHOST_SPEED;
       }
-      resetPositions( game );
+    }
+  }
+
+  for ( let i = 0; i < game.ghosts.length; i++ ) {
+    const g = game.ghosts[ i ];
+    if ( collides( game.pacman, g ) ) {
+      if ( g.frightened ) {
+        // Comer fantasma: racha arcade 200/400/800/1600 y vuelta a la casa.
+        game.score += 200 * Math.pow( 2, game.chain );
+        game.chain++;
+        g.frightened = false;
+        g.speed = GHOST_SPEED;
+        g.x = GHOST_STARTS[ i ].x;
+        g.y = GHOST_STARTS[ i ].y;
+        g.dir = 'up';
+        g.waiting = true;
+        g.exitAt = game.tick + 60; // ~1 s de espera antes de salir
+      } else {
+        game.lives--;
+        if ( game.lives <= 0 ) {
+          game.state = 'lost';
+          return;
+        }
+        resetPositions( game );
+      }
       break;
     }
   }
