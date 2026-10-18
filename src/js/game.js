@@ -21,7 +21,7 @@ function createGame() {
   grid[ PACMAN_START.y ][ PACMAN_START.x ] = 0;
 
   let dots = 0;
-  for ( const row of grid ) for ( const v of row ) if ( v === 2 ) dots++;
+  for ( const row of grid ) for ( const v of row ) if ( v === 2 || v === 4 ) dots++;
 
   return {
     state: 'start',
@@ -29,6 +29,8 @@ function createGame() {
     lives: 3,
     dotsRemaining: dots,
     tick: 0,
+    pelletTimer: 0, // ticks restantes de modo asustado; 0 = inactivo
+    chain: 0,       // racha de fantasmas comidos en el modo asustado (200..1600)
     grid,
     pacman: {
       x: PACMAN_START.x,
@@ -46,6 +48,7 @@ function createGame() {
       color: g.color,
       exitAt: g.exitDelay || 0,
       waiting: true,
+      frightened: false,
     } ) ),
   };
 }
@@ -103,6 +106,15 @@ function movePacman( game ) {
       grid[ p.y ][ p.x ] = 0;
       game.score += 10;
       game.dotsRemaining--;
+    }
+    // Comer power pellet: +50 y modo asustado para los 4 fantasmas.
+    if ( grid[ p.y ][ p.x ] === 4 ) {
+      grid[ p.y ][ p.x ] = 0;
+      game.score += 50;
+      game.dotsRemaining--;
+      game.pelletTimer = 360;
+      game.chain = 0;
+      for ( const g of game.ghosts ) g.frightened = true;
     }
     // Si no puede seguir, se detiene en la celda.
     if ( !canMove( grid, p.x, p.y, p.dir, 'pacman' ) ) return;
