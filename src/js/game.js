@@ -185,6 +185,12 @@ function decideGhost( game, g ) {
   // Sin salida (callejon): permitir el giro de 180.
   const choices = options.length ? options : [ '' + OPPOSITE[ g.dir ] ];
 
+  // Asustado: los 4 kinds eligen al azar (ignoran su personalidad).
+  if ( g.frightened ) {
+    g.dir = choices[ Math.floor( Math.random() * choices.length ) ];
+    return;
+  }
+
   if ( g.kind === 'chaser' || g.kind === 'ambusher' || g.kind === 'flanker' ) {
     const t = ghostTarget( game, g );
     let best = choices[ 0 ];
