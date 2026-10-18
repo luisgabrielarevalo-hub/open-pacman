@@ -12,6 +12,8 @@ const OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' };
 
 const PACMAN_SPEED = 0.125; // 1/8 celda/frame -> alinea cada 8 frames
 const GHOST_SPEED = 0.1;    // 1/10 celda/frame
+const FRIGHTENED_SPEED = 0.05; // 1/20 celda/frame durante el modo asustado
+const PELLET_TICKS = 360;   // 360 ticks ~ 6 s de modo asustado
 
 // Crea una partida nueva. Copia MAZE (pristino) a game.grid para poder comer
 // dots sin destruir el original, y reiniciar.
@@ -112,7 +114,7 @@ function movePacman( game ) {
       grid[ p.y ][ p.x ] = 0;
       game.score += 50;
       game.dotsRemaining--;
-      game.pelletTimer = 360;
+      game.pelletTimer = PELLET_TICKS;
       game.chain = 0;
       for ( const g of game.ghosts ) g.frightened = true;
     }
@@ -288,7 +290,21 @@ function collides( a, b ) {
 function update( game ) {
   game.tick++;
   movePacman( game );
+  // Velocidad efimera: depende del modo asustado de cada fantasma.
+  for ( const g of game.ghosts ) g.speed = g.frightened ? FRIGHTENED_SPEED : GHOST_SPEED;
   game.ghosts.forEach( ( g ) => moveGhost( game, g ) );
+
+  // Tempo del modo asustado: al agotarse, todos vuelven a la normalidad.
+  if ( game.pelletTimer > 0 ) {
+    game.pelletTimer--;
+    if ( game.pelletTimer === 0 ) {
+      game.chain = 0;
+      for ( const g of game.ghosts ) {
+        g.frightened = false;
+        g.speed = GHOST_SPEED;
+      }
+    }
+  }
 
   for ( const g of game.ghosts ) {
     if ( collides( game.pacman, g ) ) {
