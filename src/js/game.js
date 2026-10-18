@@ -276,6 +276,9 @@ function resetPositions( game ) {
   p.y = PACMAN_START.y;
   p.dir = 'left';
   p.nextDir = null;
+  // Perder vida termina el modo asustado de golpe.
+  game.pelletTimer = 0;
+  game.chain = 0;
   // Reinicia la secuencia de salida: mismo estado que al empezar.
   game.tick = 0;
   game.ghosts.forEach( ( g, i ) => {
@@ -286,6 +289,8 @@ function resetPositions( game ) {
     g.color = GHOST_STARTS[ i ].color;
     g.exitAt = GHOST_STARTS[ i ].exitDelay || 0;
     g.waiting = true;
+    g.frightened = false;
+    g.speed = GHOST_SPEED;
   } );
 }
 
